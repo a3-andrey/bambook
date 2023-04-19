@@ -1,0 +1,12 @@
+@if(config('socials.instagram'))
+    @include('components.socials.instagram')
+@endif
+@if(config('socials.telegram'))
+    @include('components.socials.telegram')
+@endif
+@if(config('socials.vk'))
+    @include('components.socials.vk')
+@endif
+@if(config('socials.whatsapp'))
+    @include('components.socials.whatsapp')
+@endif

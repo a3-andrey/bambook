@@ -1,0 +1,126 @@
+<?php
+
+namespace App\MoySklad;
+use App\Models\Category;
+use App\Models\Price;
+use App\Models\Product;
+use Cviebrock\EloquentSluggable\Services\SlugService;
+use MoySklad;
+
+trait ParserMoySklad
+{
+
+    protected $categories;
+    protected $products;
+    protected $assortment;
+
+
+    public function start(){
+
+        $this->storeCategory;
+
+    }
+
+
+    public function storeCategory(){
+        foreach($this->categories   as $category){
+
+            if($category->pathName == ''){
+                Category::updateOrInsert(
+                    ['category' => $categoryInner->name],
+                    [
+                        'parent_id' => 0,
+                        'slug' => SlugService::createSlug(Category::class, 'slug', $categoryInner->name)
+                    ]
+                );
+            }else{
+                Category::updateOrInsert(
+                    ['category' => $categoryInner->name],
+                    [
+                        'parent_id' => Category::where('category', '=', $categoryInner->pathName)->value('id'),
+                        'slug' => SlugService::createSlug(Category::class, 'slug', $categoryInner->name)
+                    ]
+                );
+            }
+        }
+    }
+
+    private function storeProducts($products){
+
+        for($i = 0; $i < count((array)$products->rows); $i++){
+            $product = $products->rows[$i];
+            $name = $product->name;
+
+            //Описание
+            if(isset($product->description)){
+                $description = $product->description;
+            } else{
+                $description = '';
+            }
+
+            //Количество товара
+            for($j = 0; $j < count($assortment->rows); $j++){
+                if($assortment->rows[$j]->name === $name){
+                    $quantity = $assortment->rows[$j]->quantity;
+                    break;
+                }
+            }
+
+
+            //Получение картинок
+            $curl = $this->get($product->images->meta->href);
+            $images = json_decode(curl_exec($curl));
+
+            curl_close($curl);
+
+            $img = [];
+            if(!empty($images->rows)){
+                if(count($images->rows) > 1){
+                    for($j = 0; $j < count($images->rows); $j++){
+                        $img[$j] = $images->rows[$j]->miniature->href;
+                    }
+                } else{
+                    $img[0] = $images->rows[0]->miniature->href;
+                }
+            } else {
+                $img[0] = '';
+            }
+
+            //Определение категории для товара
+            if(strpos($product->pathName, '/')){
+                $category = Category::where('category', '=', str_replace('/', '', stristr($product->pathName, '/')))->value('slug');
+            } else{
+                $category = Category::where('category', '=', $product->pathName)->value('slug');
+            }
+
+            Product::updateOrInsert(
+                ['name' => $name],
+                [
+                    'description' => $description,
+                    'quantity' => $quantity,
+                    'images' => json_encode($img),
+                    'category' => $category
+                ]
+            );
+
+            //Цены
+            for($j = 0; $j < count($product->salePrices); $j++){
+                Price::updateOrInsert([
+                    'price_name' => $product->salePrices[$j]->priceType->name,
+                    'price' => substr($product->salePrices[$j]->value, 0, -2).'.'.substr($product->salePrices[$j]->value, strlen($product->salePrices[$j]->value)-2),
+                ]);
+
+
+                //Цена - продукт
+                DB::table('product_price')->updateOrInsert([
+                    'product_id' => Product::where('name', '=', $name)->value('id'),
+                    'price_id' => Price::where([
+                        'price_name' => $product->salePrices[$j]->priceType->name,
+                        'price' => substr($product->salePrices[$j]->value, 0, -2).'.'.substr($product->salePrices[$j]->value, strlen($product->salePrices[$j]->value)-2),
+                    ])->value('id')
+                ]);
+            }
+        }
+    }
+
+}

@@ -1,0 +1,32 @@
+<?php
+
+namespace App\Traits;
+
+trait OrderProcess
+{
+    public function auth(){
+
+    }
+
+    public function guest(){
+
+        //Физическое
+        if($this->delivery == 0 && $this->order == 0){
+            $this->validateIndividual();
+        }
+
+        if($this->delivery == 0 && $this->order==1){
+
+            $this->validateLegal();
+
+        }
+
+        if($this->delivery == 1){
+            $this->validate([
+                'firstname' => ['required', 'string', 'max:255'],
+                'phone' => ['required', 'string', 'max:255'],
+                'confirmation' => ['required'],
+            ]);
+        }
+    }
+}
